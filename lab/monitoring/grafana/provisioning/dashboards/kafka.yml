@@ -1,0 +1,13 @@
+# Chargement automatique des dashboards JSON du dossier
+# /var/lib/grafana/dashboards (monte depuis monitoring/grafana/dashboards).
+apiVersion: 1
+providers:
+  - name: kafka-lab
+    folder: Kafka
+    type: file
+    disableDeletion: true
+    allowUiUpdates: true
+    updateIntervalSeconds: 30
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: false

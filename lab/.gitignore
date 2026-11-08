@@ -1,0 +1,9 @@
+# Fichiers generes localement par scripts/prepare.sh et les scripts du lab
+security/certs/
+monitoring/jmx-exporter/*.jar
+monitoring/jmx-exporter/*.part
+offline-bundle/
+config/kafka/backup-*/
+config/kafka/kafka-*/server.properties.before-incident5
+.env
+config/kafka/kafka-*/server.properties.bak

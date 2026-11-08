@@ -1,0 +1,116 @@
+# ---------------------------------------------------------------------------
+# Regles Prometheus JMX exporter (agent Java) pour les noeuds Kafka 4.3
+# (brokers et controleurs KRaft). Point d'exposition : http://kafka-N:9404/metrics
+#
+# Principe : chaque MBean JMX est converti en serie Prometheus.
+#   kafka.server:type=ReplicaManager,name=UnderReplicatedPartitions  (Value)
+#   -> kafka_server_replicamanager_underreplicatedpartitions
+# Les MBeans qui ne correspondent a aucune regle ne sont pas exportes.
+# Les metriques JVM (memoire, GC, threads) sont ajoutees par l'agent.
+#
+# Base : exemples du projet prometheus/jmx_exporter, adaptes a KRaft
+# (metriques raft-metrics et broker-metadata-metrics).
+# ---------------------------------------------------------------------------
+lowercaseOutputName: true
+lowercaseOutputLabelNames: true
+
+rules:
+  # ----- Quorum KRaft (controleurs) -------------------------------------
+  # kafka.server:type=raft-metrics : leader, epoch, high watermark, latences
+  - pattern: kafka.server<type=raft-metrics><>([a-z-]+)
+    name: kafka_server_raft_metrics_$1
+    type: GAUGE
+
+  # Etat d'application des metadonnees sur chaque noeud.
+  - pattern: kafka.server<type=broker-metadata-metrics><>([a-z-]+)
+    name: kafka_server_broker_metadata_metrics_$1
+    type: GAUGE
+
+  # ----- Ratio d'inactivite des threads de traitement des requetes -------
+  # Meter : la valeur utile est le taux sur une minute (0 a 1).
+  - pattern: kafka.server<type=KafkaRequestHandlerPool, name=RequestHandlerAvgIdlePercent><>OneMinuteRate
+    name: kafka_server_kafkarequesthandlerpool_requesthandleravgidlepercent
+    type: GAUGE
+
+  # ----- Quotas par utilisateur / client-id ------------------------------
+  - pattern: kafka.server<type=(Produce|Fetch|Request), user=(.+), client-id=(.+)><>(throttle-time|byte-rate|request-time)
+    name: kafka_server_quota_$4
+    type: GAUGE
+    labels:
+      resource: "$1"
+      user: "$2"
+      client_id: "$3"
+  - pattern: kafka.server<type=(Produce|Fetch|Request), user=(.+)><>(throttle-time|byte-rate|request-time)
+    name: kafka_server_quota_$3
+    type: GAUGE
+    labels:
+      resource: "$1"
+      user: "$2"
+  - pattern: kafka.server<type=(Produce|Fetch|Request), client-id=(.+)><>(throttle-time|byte-rate|request-time)
+    name: kafka_server_quota_$3
+    type: GAUGE
+    labels:
+      resource: "$1"
+      client_id: "$2"
+
+  # ----- Compteurs "...PerSec" (Meters) : on exporte le cumul (Count) ----
+  # Prometheus calcule ensuite les debits avec rate().
+  - pattern: kafka.(\w+)<type=(.+), name=(.+)PerSec\w*, (.+)=(.+), (.+)=(.+)><>Count
+    name: kafka_$1_$2_$3_total
+    type: COUNTER
+    labels:
+      "$4": "$5"
+      "$6": "$7"
+  - pattern: kafka.(\w+)<type=(.+), name=(.+)PerSec\w*, (.+)=(.+)><>Count
+    name: kafka_$1_$2_$3_total
+    type: COUNTER
+    labels:
+      "$4": "$5"
+  - pattern: kafka.(\w+)<type=(.+), name=(.+)PerSec\w*><>Count
+    name: kafka_$1_$2_$3_total
+    type: COUNTER
+
+  # ----- Jauges (Value) avec 0 a 2 etiquettes ----------------------------
+  - pattern: kafka.(\w+)<type=(.+), name=(.+), (.+)=(.+), (.+)=(.+)><>Value
+    name: kafka_$1_$2_$3
+    type: GAUGE
+    labels:
+      "$4": "$5"
+      "$6": "$7"
+  - pattern: kafka.(\w+)<type=(.+), name=(.+), (.+)=(.+)><>Value
+    name: kafka_$1_$2_$3
+    type: GAUGE
+    labels:
+      "$4": "$5"
+  - pattern: kafka.(\w+)<type=(.+), name=(.+)><>Value
+    name: kafka_$1_$2_$3
+    type: GAUGE
+
+  # ----- Histogrammes : percentiles exportes sous forme de quantiles -----
+  # Ex. : kafka_network_requestmetrics_totaltimems{request="Produce",quantile="0.99"}
+  - pattern: kafka.(\w+)<type=(.+), name=(.+), (.+)=(.*), (.+)=(.+)><>(\d+)thPercentile
+    name: kafka_$1_$2_$3
+    type: GAUGE
+    labels:
+      "$4": "$5"
+      "$6": "$7"
+      quantile: "0.$8"
+  - pattern: kafka.(\w+)<type=(.+), name=(.+), (.+)=(.*)><>(\d+)thPercentile
+    name: kafka_$1_$2_$3
+    type: GAUGE
+    labels:
+      "$4": "$5"
+      quantile: "0.$6"
+  - pattern: kafka.(\w+)<type=(.+), name=(.+)><>(\d+)thPercentile
+    name: kafka_$1_$2_$3
+    type: GAUGE
+    labels:
+      quantile: "0.$4"
+  - pattern: kafka.(\w+)<type=(.+), name=(.+), (.+)=(.*)><>Count
+    name: kafka_$1_$2_$3_count
+    type: COUNTER
+    labels:
+      "$4": "$5"
+  - pattern: kafka.(\w+)<type=(.+), name=(.+)><>Count
+    name: kafka_$1_$2_$3_count
+    type: COUNTER

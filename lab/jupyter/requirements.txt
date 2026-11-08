@@ -1,0 +1,4 @@
+# Environnement Python des notebooks de TP (versions figees le 28/10/2026).
+jupyterlab==4.6.4
+confluent-kafka==2.16.0
+requests==2.34.2

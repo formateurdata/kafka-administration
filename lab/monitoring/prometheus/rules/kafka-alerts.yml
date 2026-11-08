@@ -1,0 +1,100 @@
+# ---------------------------------------------------------------------------
+# Regles d'alerte Kafka du lab NovaShop
+# Visibles dans Prometheus : http://localhost:9090/alerts
+#
+# Etats : inactive -> pending (condition vraie, delai "for" en cours)
+#         -> firing (condition vraie au-dela du delai).
+# En production, Alertmanager route les alertes "firing" vers l'astreinte
+# (non deploye dans le lab).
+#
+# Les seuils marques [LAB] sont reduits pour etre observables en TP.
+# ---------------------------------------------------------------------------
+groups:
+  - name: kafka-cluster
+    rules:
+      - alert: KafkaNodeDown
+        expr: up{job="kafka"} == 0
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "Noeud Kafka {{ $labels.instance }} injoignable"
+          description: "L'agent JMX de {{ $labels.instance }} ne repond plus depuis 30 s (processus arrete, conteneur en pause ou reseau)."
+
+      - alert: KafkaNoActiveController
+        expr: sum(kafka_controller_kafkacontroller_activecontrollercount) != 1
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "Nombre de controleurs actifs different de 1 ({{ $value }})"
+          description: "0 : pas de leader du quorum KRaft (majorite perdue ?). Plus de 1 : etat transitoire ou incoherent."
+
+      - alert: KafkaOfflinePartitions
+        expr: max(kafka_controller_kafkacontroller_offlinepartitionscount) > 0
+        for: 0s
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $value }} partition(s) sans leader"
+          description: "Partitions indisponibles en lecture et en ecriture. Verifier les brokers arretes et les ISR."
+
+      - alert: KafkaUnderMinIsrPartitions
+        expr: sum(kafka_server_replicamanager_underminisrpartitioncount) > 0
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $value }} partition(s) sous min.insync.replicas"
+          description: "Les producteurs en acks=all recoivent NotEnoughReplicas sur ces partitions."
+
+      - alert: KafkaUnderReplicatedPartitions
+        expr: sum(kafka_server_replicamanager_underreplicatedpartitions) > 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $value }} partition(s) sous-repliquee(s)"
+          description: "Au moins une replique n'est pas dans l'ISR. Broker arrete, lent ou replication bridee."
+
+      - alert: KafkaFencedBrokers
+        expr: max(kafka_controller_kafkacontroller_fencedbrokercount) > 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $value }} broker(s) isole(s) (fenced) par le controleur"
+          description: "Broker enregistre mais sans heartbeat recent, ou en cours de demarrage."
+
+      - alert: KafkaRequestHandlerSaturated
+        expr: avg by (instance) (kafka_server_kafkarequesthandlerpool_requesthandleravgidlepercent) < 0.3
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Threads de requetes satures sur {{ $labels.instance }}"
+          description: "Moins de 30 % d'inactivite des threads I/O : le broker approche de sa capacite."
+
+  - name: kafka-storage
+    rules:
+      - alert: KafkaBrokerLogSizeHigh
+        # [LAB] seuil de 250 Mo par broker, calibre pour l incident 6 (production : % du disque, via node_exporter).
+        expr: sum by (instance) (kafka_log_log_size) > 250 * 1024 * 1024
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Donnees Kafka sur {{ $labels.instance }} : {{ $value | humanize1024 }}o"
+          description: "Verifier la retention des topics les plus volumineux (retention.ms, retention.bytes)."
+
+  - name: kafka-consumers
+    rules:
+      - alert: KafkaConsumerGroupLagHigh
+        # [LAB] seuil bas pour etre atteint en quelques minutes pendant le TP6.
+        expr: sum by (consumergroup, topic) (kafka_consumergroup_lag) > 5000
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Lag de {{ $value }} messages pour {{ $labels.consumergroup }} sur {{ $labels.topic }}"
+          description: "Le groupe consomme moins vite que la production, ou ne consomme plus."

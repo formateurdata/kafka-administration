@@ -1,0 +1,439 @@
+# ==========================================================================
+# Lab "Kafka Administration" (PLB IKAF) - cluster NovaShop
+#
+# Apache Kafka 4.3.2 en mode KRaft, 3 noeuds combines broker + controleur.
+#
+# Profils :
+#   (aucun)     Core       : kafka-1..3, kafka-ui, tools, jupyter
+#   monitoring  Extended   : prometheus, grafana, kafka-exporter
+#   load        Extended   : loadgen-producer, loadgen-consumer
+#   ecosystem   Full       : schema-registry, connect
+#   scale       TP7        : kafka-4 (broker seul)
+#   mirror      TP9        : kafka-cloud (second cluster), mirrormaker (MM2)
+#
+# Demarrage recommande : scripts/start.sh core | extended | full
+# Toutes les variables ${...} ont une valeur par defaut : le fichier .env
+# est optionnel (modele : env.template).
+# ==========================================================================
+name: kafka-lab
+
+x-kafka-image: &kafka-image ${KAFKA_IMAGE:-m0uaad/kafka-lab-kafka:4.3.2-1}
+
+# --------------------------------------------------------------------------
+# Modele commun aux noeuds Kafka
+# --------------------------------------------------------------------------
+x-kafka-node: &kafka-node
+  image: *kafka-image
+  # Formatage du stockage puis kafka-server-start.sh (voir start-node.sh).
+  command: ["bash", "/opt/lab/common/start-node.sh"]
+  restart: "no"
+  mem_limit: ${KAFKA_NODE_MEM_LIMIT:-1g}
+  networks: [kafka-lab]
+  stop_grace_period: 60s
+  healthcheck:
+    # Le port INTERNAL n'ouvre qu'une fois le broker pret a servir.
+    test: ["CMD-SHELL", "nc -z localhost 19092 || exit 1"]
+    interval: 10s
+    timeout: 5s
+    retries: 18
+    start_period: 20s
+
+x-kafka-env: &kafka-env
+  CLUSTER_ID: ${CLUSTER_ID:-W5FmqobtRp-BMcXlZhVKBw}
+  # Quorum initial : id@hote:port:directory.id (identique sur tous les noeuds).
+  KAFKA_INITIAL_CONTROLLERS: 1@kafka-1:9093:${KAFKA_1_DIR_ID:-4EubdzSZTbykbeqlrbgz1Q},2@kafka-2:9093:${KAFKA_2_DIR_ID:-D-l1kOfvTxmWUQ9mDz8CFQ},3@kafka-3:9093:${KAFKA_3_DIR_ID:-rUNdHnJlQu6wfWRz_G30kA}
+  KAFKA_NODE_HEAP_OPTS: ${KAFKA_NODE_HEAP_OPTS:--Xms512m -Xmx512m}
+  JMX_EXPORTER_VERSION: ${JMX_EXPORTER_VERSION:-1.7.0}
+
+x-bootstrap: &bootstrap kafka-1:19092,kafka-2:19092,kafka-3:19092
+
+services:
+  # ========================================================================
+  # CORE : cluster Kafka
+  # ========================================================================
+  kafka-1:
+    <<: *kafka-node
+    hostname: kafka-1
+    container_name: kafka-1
+    environment: *kafka-env
+    ports: ["9092:9092"]
+    volumes:
+      - ./config/kafka/common/log4j2.yaml:/opt/lab/common/log4j2.yaml:ro
+      - ./security/certs:/opt/lab/secrets:ro
+      - ./monitoring/jmx-exporter/kafka-broker.yml:/opt/jmx-exporter/kafka-broker.yml:ro
+      - ./config/kafka/kafka-1:/opt/lab/node:ro
+      - kafka-1-data:/var/lib/kafka
+
+  kafka-2:
+    <<: *kafka-node
+    hostname: kafka-2
+    container_name: kafka-2
+    environment: *kafka-env
+    ports: ["9192:9192"]
+    volumes:
+      - ./config/kafka/common/log4j2.yaml:/opt/lab/common/log4j2.yaml:ro
+      - ./security/certs:/opt/lab/secrets:ro
+      - ./monitoring/jmx-exporter/kafka-broker.yml:/opt/jmx-exporter/kafka-broker.yml:ro
+      - ./config/kafka/kafka-2:/opt/lab/node:ro
+      - kafka-2-data:/var/lib/kafka
+
+  kafka-3:
+    <<: *kafka-node
+    hostname: kafka-3
+    container_name: kafka-3
+    environment: *kafka-env
+    ports: ["9292:9292"]
+    volumes:
+      - ./config/kafka/common/log4j2.yaml:/opt/lab/common/log4j2.yaml:ro
+      - ./security/certs:/opt/lab/secrets:ro
+      - ./monitoring/jmx-exporter/kafka-broker.yml:/opt/jmx-exporter/kafka-broker.yml:ro
+      - ./config/kafka/kafka-3:/opt/lab/node:ro
+      - kafka-3-data:/var/lib/kafka
+
+  # Broker seul, ajoute au cluster pendant le TP7 :
+  #   docker compose --profile scale up -d kafka-4
+  kafka-4:
+    <<: *kafka-node
+    profiles: [scale]
+    hostname: kafka-4
+    container_name: kafka-4
+    environment: *kafka-env
+    ports: ["9392:9392"]
+    volumes:
+      - ./config/kafka/common/log4j2.yaml:/opt/lab/common/log4j2.yaml:ro
+      - ./security/certs:/opt/lab/secrets:ro
+      - ./monitoring/jmx-exporter/kafka-broker.yml:/opt/jmx-exporter/kafka-broker.yml:ro
+      - ./config/kafka/kafka-4:/opt/lab/node:ro
+      - kafka-4-data:/var/lib/kafka
+
+  # ========================================================================
+  # CORE : poste d'administration (CLI Kafka) et interface graphique
+  # ========================================================================
+  # Utilisation : docker compose exec tools bash
+  tools:
+    image: *kafka-image
+    hostname: tools
+    container_name: kafka-tools
+    command: ["sleep", "infinity"]
+    init: true
+    working_dir: /opt/lab
+    networks: [kafka-lab]
+    environment:
+      BS: *bootstrap
+      BS_SECURE: kafka-1:19094,kafka-2:19094,kafka-3:19094
+      # Cluster cloud du TP9 (profil mirror), listener INTERNAL des outils.
+      BS_CLOUD: kafka-cloud:19092
+      PATH: /opt/kafka/bin:/opt/java/openjdk/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+      PS1: 'tools:\w$$ '
+    volumes:
+      - ./clients:/opt/lab/clients:ro
+      - ./security/certs:/opt/lab/secrets:ro
+      - ./data:/opt/lab/data:ro
+      - ./config/kafka:/opt/lab/kafka-config:ro
+
+  kafka-ui:
+    image: ${KAFKA_UI_IMAGE:-ghcr.io/kafbat/kafka-ui:v1.5.0}
+    container_name: kafka-ui
+    networks: [kafka-lab]
+    ports: ["${KAFKA_UI_PORT:-8080}:8080"]
+    mem_limit: 768m
+    environment:
+      JAVA_OPTS: -Xms128m -Xmx384m
+      DYNAMIC_CONFIG_ENABLED: "false"
+      KAFKA_CLUSTERS_0_NAME: novashop-lab
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: *bootstrap
+      # Pas de lecture de metriques par l'UI : elles sont dans Grafana (profil
+      # monitoring). Les noms produits par nos regles JMX exporter ne sont pas
+      # ceux qu'attend Kafka UI pour ses colonnes de debit.
+      # Services du profil ecosystem (signales indisponibles s'ils sont arretes).
+      KAFKA_CLUSTERS_0_SCHEMAREGISTRY: http://schema-registry:8081
+      KAFKA_CLUSTERS_0_KAFKACONNECT_0_NAME: connect
+      KAFKA_CLUSTERS_0_KAFKACONNECT_0_ADDRESS: http://connect:8083
+    depends_on:
+      kafka-1: {condition: service_healthy}
+      kafka-2: {condition: service_healthy}
+      kafka-3: {condition: service_healthy}
+
+  # JupyterLab des TP (notebooks enonce, corrige, demos) : http://localhost:8888
+  # JupyterLab ne montre que tps/ et demos-tp/ (monte dans /notebooks).
+  # [LAB] sans jeton ni mot de passe, et socket Docker monte pour piloter le lab
+  # (arret de noeuds, redemarrages) : equivaut a un acces root sur le moteur
+  # Docker. Le port n'est publie que sur 127.0.0.1. Jamais en production.
+  # La formation est montee au meme chemin que sur l'hote (FORMATION_DIR, exporte
+  # par scripts/lib.sh) : docker compose lance depuis un notebook resout ainsi
+  # les chemins relatifs de ce fichier comme sur l'hote.
+  jupyter:
+    image: ${JUPYTER_IMAGE:-m0uaad/kafka-lab-jupyter:1}
+    container_name: jupyter
+    hostname: jupyter
+    networks: [kafka-lab]
+    ports: ["127.0.0.1:${JUPYTER_PORT:-8888}:8888"]
+    mem_limit: 768m
+    init: true
+    working_dir: ${FORMATION_DIR:-/formation}
+    # Authentification, dossier racine et fichiers masques : jupyter/jupyter_server_config.py
+    command: ["jupyter", "lab", "--ip=0.0.0.0", "--port=8888", "--no-browser", "--allow-root"]
+    environment:
+      BS: *bootstrap
+      BS_SECURE: kafka-1:19094,kafka-2:19094,kafka-3:19094
+      BS_CLOUD: kafka-cloud:19092
+      FORMATION_DIR: ${FORMATION_DIR:-/formation}
+      KAFKA_IMAGE: ${KAFKA_IMAGE:-m0uaad/kafka-lab-kafka:4.3.2-1}
+      JUPYTER_IMAGE: ${JUPYTER_IMAGE:-m0uaad/kafka-lab-jupyter:1}
+      PYTHONPATH: ${FORMATION_DIR:-/formation}/lab/jupyter
+      COMPOSE_PROJECT_NAME: kafka-lab
+      # Vide par defaut : pas de jeton. Voir jupyter/README.md (VS Code).
+      JUPYTER_TOKEN: ${JUPYTER_TOKEN:-}
+    volumes:
+      - ..:${FORMATION_DIR:-/formation}
+      # Seuls dossiers visibles dans JupyterLab
+      - ../tps:/notebooks/tps
+      - ../demos-tp:/notebooks/demos-tp
+      - ./jupyter/jupyter_server_config.py:/etc/jupyter/jupyter_server_config.py:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      kafka-1: {condition: service_healthy}
+      kafka-2: {condition: service_healthy}
+      kafka-3: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8888/api', timeout=4)"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  # ========================================================================
+  # MONITORING : Prometheus, Grafana, kafka-exporter
+  # ========================================================================
+  prometheus:
+    image: ${PROMETHEUS_IMAGE:-prom/prometheus:v3.15.1}
+    profiles: [monitoring]
+    container_name: prometheus
+    networks: [kafka-lab]
+    ports: ["${PROMETHEUS_PORT:-9090}:9090"]
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=3d
+      # Permet POST /-/reload apres modification des regles (TP6).
+      - --web.enable-lifecycle
+    volumes:
+      - ./monitoring/prometheus:/etc/prometheus:ro
+      - prometheus-data:/prometheus
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:9090/-/ready >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  grafana:
+    image: ${GRAFANA_IMAGE:-grafana/grafana:13.2.4}
+    profiles: [monitoring]
+    container_name: grafana
+    networks: [kafka-lab]
+    ports: ["${GRAFANA_PORT:-3000}:3000"]
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-kafka-lab}
+      # [LAB] consultation sans authentification (role Viewer).
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/kafka-cluster.json
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_NEWS_NEWS_FEED_ENABLED: "false"
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      prometheus: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/api/health >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  # Lag des consumer groups calcule cote cluster (offsets commites
+  # compares aux offsets de fin de partition).
+  kafka-exporter:
+    image: ${KAFKA_EXPORTER_IMAGE:-danielqsj/kafka-exporter:v1.9.0}
+    profiles: [monitoring]
+    container_name: kafka-exporter
+    networks: [kafka-lab]
+    restart: on-failure
+    command:
+      - --kafka.server=kafka-1:19092
+      - --kafka.server=kafka-2:19092
+      - --kafka.server=kafka-3:19092
+      - --kafka.version=3.9.0
+      - --topic.filter=^[^_].*
+      - --group.filter=.*
+    depends_on:
+      kafka-1: {condition: service_healthy}
+      kafka-2: {condition: service_healthy}
+      kafka-3: {condition: service_healthy}
+
+  # ========================================================================
+  # LOAD : trafic continu pour les dashboards (topic loadgen)
+  # ========================================================================
+  loadgen-producer:
+    image: *kafka-image
+    profiles: [load]
+    container_name: loadgen-producer
+    hostname: loadgen-producer
+    networks: [kafka-lab]
+    restart: on-failure
+    command: ["bash", "/opt/lab/loadgen/producer.sh"]
+    environment:
+      BS: *bootstrap
+      LOADGEN_TOPIC: ${LOADGEN_TOPIC:-loadgen}
+      LOADGEN_THROUGHPUT: ${LOADGEN_THROUGHPUT:-100}
+      LOADGEN_RECORD_SIZE: ${LOADGEN_RECORD_SIZE:-256}
+      JMX_EXPORTER_VERSION: ${JMX_EXPORTER_VERSION:-1.7.0}
+    volumes:
+      - ./monitoring/jmx-exporter/kafka-client.yml:/opt/jmx-exporter/kafka-client.yml:ro
+    depends_on:
+      kafka-1: {condition: service_healthy}
+      kafka-2: {condition: service_healthy}
+      kafka-3: {condition: service_healthy}
+
+  loadgen-consumer:
+    image: *kafka-image
+    profiles: [load]
+    container_name: loadgen-consumer
+    hostname: loadgen-consumer
+    networks: [kafka-lab]
+    restart: on-failure
+    command: ["bash", "/opt/lab/loadgen/consumer.sh"]
+    environment:
+      BS: *bootstrap
+      LOADGEN_TOPIC: ${LOADGEN_TOPIC:-loadgen}
+      JMX_EXPORTER_VERSION: ${JMX_EXPORTER_VERSION:-1.7.0}
+    volumes:
+      - ./monitoring/jmx-exporter/kafka-client.yml:/opt/jmx-exporter/kafka-client.yml:ro
+    depends_on:
+      loadgen-producer: {condition: service_started}
+
+  # ========================================================================
+  # ECOSYSTEM : Schema Registry et Kafka Connect (demo D3)
+  # ========================================================================
+  schema-registry:
+    image: ${SCHEMA_REGISTRY_IMAGE:-confluentinc/cp-schema-registry:8.3.2}
+    profiles: [ecosystem]
+    container_name: schema-registry
+    hostname: schema-registry
+    networks: [kafka-lab]
+    ports: ["${SCHEMA_REGISTRY_PORT:-8081}:8081"]
+    mem_limit: 768m
+    environment:
+      SCHEMA_REGISTRY_HOST_NAME: schema-registry
+      SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: PLAINTEXT://kafka-1:19092,PLAINTEXT://kafka-2:19092,PLAINTEXT://kafka-3:19092
+      SCHEMA_REGISTRY_KAFKASTORE_TOPIC: _schemas
+      SCHEMA_REGISTRY_KAFKASTORE_TOPIC_REPLICATION_FACTOR: 3
+      SCHEMA_REGISTRY_SCHEMA_COMPATIBILITY_LEVEL: BACKWARD
+      SCHEMA_REGISTRY_HEAP_OPTS: -Xms128m -Xmx384m
+    depends_on:
+      kafka-1: {condition: service_healthy}
+      kafka-2: {condition: service_healthy}
+      kafka-3: {condition: service_healthy}
+    healthcheck:
+      # L'image cp-schema-registry 8.3 ne contient ni curl, ni wget, ni nc : test en Python.
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8081/subjects', timeout=4)"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 20s
+
+  # Kafka Connect distribue, avec le connecteur FileStream livre par Apache Kafka.
+  connect:
+    image: *kafka-image
+    profiles: [ecosystem]
+    container_name: connect
+    hostname: connect
+    networks: [kafka-lab]
+    ports: ["${CONNECT_PORT:-8083}:8083"]
+    mem_limit: 768m
+    command: ["/opt/kafka/bin/connect-distributed.sh", "/opt/lab/connect/connect-distributed.properties"]
+    environment:
+      KAFKA_HEAP_OPTS: -Xms256m -Xmx384m
+      KAFKA_LOG4J_OPTS: -Dlog4j2.configurationFile=/opt/kafka/config/connect-log4j2.yaml
+    volumes:
+      - ./config/connect:/opt/lab/connect:ro
+      - ./data:/opt/lab/data:ro
+      # Fichiers des connecteurs FileStream. /var/lib/kafka appartient a appuser
+      # dans l'image : le volume herite de ces droits (un nouveau chemin serait
+      # cree par Docker avec root comme proprietaire et le sink echouerait).
+      - connect-files:/var/lib/kafka
+    depends_on:
+      kafka-1: {condition: service_healthy}
+      kafka-2: {condition: service_healthy}
+      kafka-3: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8083/ >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 30s
+
+  # ========================================================================
+  # MIRROR : second cluster et MirrorMaker 2 (TP9)
+  # ========================================================================
+  # Cluster "cloud" d'un seul noeud : il joue le role d'un cluster gere
+  # (AWS MSK par exemple). Identifiant de cluster distinct du cluster onprem.
+  #   docker compose --profile mirror up -d kafka-cloud
+  kafka-cloud:
+    <<: *kafka-node
+    profiles: [mirror]
+    hostname: kafka-cloud
+    container_name: kafka-cloud
+    command: ["bash", "/opt/lab/node/start-cloud.sh"]
+    environment:
+      CLOUD_CLUSTER_ID: ${CLOUD_CLUSTER_ID:-tF2HiBQuSD6MqpTGGGBVfA}
+      # [LAB] mot de passe du compte mm2, cree au formatage (start-cloud.sh).
+      MM2_PASSWORD: ${MM2_PASSWORD:-mm2-secret}
+      KAFKA_NODE_HEAP_OPTS: ${KAFKA_NODE_HEAP_OPTS:--Xms512m -Xmx512m}
+    volumes:
+      - ./config/kafka/common/log4j2.yaml:/opt/lab/common/log4j2.yaml:ro
+      - ./security/certs:/opt/lab/secrets:ro
+      - ./config/kafka/kafka-cloud:/opt/lab/node:ro
+      - kafka-cloud-data:/var/lib/kafka
+
+  # MirrorMaker 2 en mode dedie : un processus Connect qui lit le cluster
+  # onprem et ecrit dans le cluster cloud. Configuration : config/mirrormaker/.
+  #   docker compose --profile mirror up -d mirrormaker
+  mirrormaker:
+    image: *kafka-image
+    profiles: [mirror]
+    container_name: mirrormaker
+    hostname: mirrormaker
+    networks: [kafka-lab]
+    restart: "no"
+    mem_limit: 768m
+    command: ["/opt/kafka/bin/connect-mirror-maker.sh", "/opt/lab/mirrormaker/mm2.properties"]
+    environment:
+      KAFKA_HEAP_OPTS: -Xms256m -Xmx384m
+      KAFKA_LOG4J_OPTS: -Dlog4j2.configurationFile=/opt/kafka/config/connect-log4j2.yaml
+    volumes:
+      - ./config/mirrormaker:/opt/lab/mirrormaker:ro
+      - ./security/certs:/opt/lab/secrets:ro
+    depends_on:
+      kafka-1: {condition: service_healthy}
+      kafka-2: {condition: service_healthy}
+      kafka-3: {condition: service_healthy}
+      kafka-cloud: {condition: service_healthy}
+
+networks:
+  kafka-lab:
+    name: kafka-lab
+
+volumes:
+  kafka-1-data:
+  kafka-2-data:
+  kafka-3-data:
+  kafka-4-data:
+  kafka-cloud-data:
+  prometheus-data:
+  grafana-data:
+  connect-files:

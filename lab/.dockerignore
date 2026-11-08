@@ -1,0 +1,15 @@
+# Contexte de construction Kafka : liste fermee, aucun secret ni donnee.
+**
+!images/
+!images/Dockerfile
+!config/
+!config/kafka/
+!config/kafka/common/
+!config/kafka/common/start-node.sh
+!scripts/
+!scripts/loadgen/
+!scripts/loadgen/producer.sh
+!scripts/loadgen/consumer.sh
+!monitoring/
+!monitoring/jmx-exporter/
+!monitoring/jmx-exporter/jmx_prometheus_javaagent-1.7.0.jar

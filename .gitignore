@@ -1,0 +1,71 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Fichiers systeme et editeurs
+.DS_Store
+.ipynb_checkpoints/
+.vscode/
+.idea/
+
+# Secrets et configuration locale
+.env
+.env.*
+!lab/env.template
+
+# ---------------------------------------------------------------------------
+# Supports reserves au formateur : ne jamais partager avec le client
+# ---------------------------------------------------------------------------
+
+# Consignes de maintenance et agents
+AGENTS.md
+CLAUDE.md
+.claude/
+
+# Plan : programme PLB, livrables A et B
+plan/
+
+# Guide d'animation, depannage, runbook des incidents, textes des demos
+formateur/
+
+# Demonstrations formateur D1 a D7
+demos/
+
+# Slides : fiches avec notes orales, speech, sources YAML, generateur, modele PLB.
+# Les decks .pptx portent le speech dans les notes : exporter un PDF sans notes
+# pour le client plutot que de partager le .pptx.
+slides/
+
+# Corriges des TP et sources des notebooks (elles contiennent les solutions)
+tps/**/corrige.md
+tps/**/corrige.ipynb
+tps/**/notebook.source.py
+demos-tp/*.source.py
+
+# Evaluation : quiz, enonce et bareme du TP final
+evaluation/
+
+# Generateur du PDF client (seul le PDF est remis)
+livrables-client/visite-interfaces/
+
+# Artefacts locaux du lab : secrets, images et sauvegardes
+lab/security/certs/
+lab/monitoring/jmx-exporter/*.jar
+lab/monitoring/jmx-exporter/*.part
+lab/offline-bundle/
+lab/config/kafka/backup-*/
+lab/config/kafka/kafka-*/*.bak
+lab/config/kafka/kafka-*/server.properties.before-incident*
+lab/monitoring/prometheus/rules/tp6-custom.yml
+
+livrables-client/plan-chapitres/
+livrables-client/*.md
+Apache_Kafka_in_Action.md
+Audit & Cadrage – Formation Kafka Administration (IKAF) - VICAT (Responses) - Form Responses 1.csv

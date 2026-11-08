@@ -1,0 +1,57 @@
+# ---------------------------------------------------------------------------
+# Prometheus du lab NovaShop
+# Interface : http://localhost:9090   (Status > Targets, Alerts, Graph)
+# Rechargement apres modification :
+#   docker compose exec prometheus wget -qO- --post-data='' http://localhost:9090/-/reload
+# ---------------------------------------------------------------------------
+global:
+  scrape_interval: 15s
+  scrape_timeout: 10s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: novashop-lab
+
+rule_files:
+  - /etc/prometheus/rules/*.yml
+
+scrape_configs:
+  # Noeuds Kafka (brokers + controleurs) : agent JMX exporter sur le port 9404.
+  - job_name: kafka
+    static_configs:
+      - targets: [kafka-1:9404, kafka-2:9404, kafka-3:9404]
+    relabel_configs:
+      # instance="kafka-1" au lieu de "kafka-1:9404" : plus lisible.
+      - source_labels: [__address__]
+        regex: "([^:]+):\\d+"
+        target_label: instance
+        replacement: "$1"
+
+  # Broker ajoute au TP7 (profil scale). Cible "down" tant qu'il n'existe pas :
+  # c'est attendu, et ce job est exclu de l'alerte KafkaNodeDown.
+  - job_name: kafka-scale
+    static_configs:
+      - targets: [kafka-4:9404]
+    relabel_configs:
+      - source_labels: [__address__]
+        regex: "([^:]+):\\d+"
+        target_label: instance
+        replacement: "$1"
+
+  # Clients Java instrumentes (profil load).
+  - job_name: kafka-clients
+    static_configs:
+      - targets: [loadgen-producer:9404, loadgen-consumer:9404]
+    relabel_configs:
+      - source_labels: [__address__]
+        regex: "([^:]+):\\d+"
+        target_label: instance
+        replacement: "$1"
+
+  # Lag des consumer groups et offsets des partitions (kafka-exporter).
+  - job_name: kafka-exporter
+    static_configs:
+      - targets: [kafka-exporter:9308]
+
+  - job_name: prometheus
+    static_configs:
+      - targets: [localhost:9090]
