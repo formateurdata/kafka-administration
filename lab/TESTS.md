@@ -220,14 +220,14 @@ Extension Jupyter 2025.9.1 sur macOS, lab en mode `extended`. Les requêtes de l
 | Élément | Risque | Recommandation |
 |---|---|---|
 | Windows 10/11 avec WSL2 | Performances des montages, fins de ligne des scripts | Tester un poste type avant la session ; cloner le dépôt dans WSL2, pas sous `/mnt/c` |
-| Linux `x86_64` (Docker Engine sans Desktop) | Faible : images multi-architecture | Lancer `validate.sh` et `selftest.sh` sur un poste type |
+| Linux `x86_64` (Docker Engine sans Desktop) | Testé le 09/11/2026 sur une VM Ubuntu 24.04 amd64 (voir la section « Essai sur Linux amd64 ») ; reste à valider sur la VM du client | Rejouer `validate.sh` sur la VM pilote |
 | Chargement du lot `amd64` sur un PC `x86_64` | Faible | Tester `offline-bundle.sh load` sur un poste de la salle |
 | Docker Desktop avec l'ancien magasin d'images (sans containerd) | `docker save --platform` indisponible | Constituer le lot sur une machine de même architecture que les postes |
 | Proxy d'entreprise | `prepare.sh` peut échouer (GitHub, registres) | Utiliser le lot hors ligne |
 | Postes avec 8 Go de RAM en mode `extended` | Possible pression mémoire | Utiliser le mode `core` et suivre la supervision sur le poste du formateur |
 | Variante mTLS (keystore `client-alice`) | Configuration du listener à adapter (`ssl.client.auth`) | Variante avancée, non incluse dans le selftest |
 | `offline-bundle.sh save` avec l'image JupyterLab, surtout pour une autre architecture (construction émulée) | Lot sans image JupyterLab, ou construction longue | Constituer le lot la veille et vérifier `docker image inspect kafka-lab/jupyter:1` après `load` |
-| Conteneur `jupyter` sur Windows (WSL2) et Linux : montage au même chemin que l'hôte, socket Docker | `hote()` inutilisable si le chemin ou le socket diffère | Tester `hote("docker compose ps")` sur un poste type |
+| Conteneur `jupyter` sur Windows (WSL2) : montage au même chemin que l'hôte, socket Docker (Linux testé le 09/11/2026) | `hote()` inutilisable si le chemin ou le socket diffère | Tester `hote("docker compose ps")` sur un poste type |
 | Chemin de la formation contenant des espaces | Montage ou `docker compose` en échec dans le conteneur | Placer la formation dans un chemin sans espace |
 | Parcours dans l'interface de VS Code : *Existing Jupyter Server...*, exécution de cellules | Écart possible avec les requêtes rejouées le 30/10 | Essayer sur le poste du formateur avant la session |
 
@@ -355,3 +355,30 @@ est toujours en fonctionnement.
 Le chargement sur un vrai poste amd64 et Windows/WSL2 reste à valider. L'accès
 anonyme testé porte sur les manifestes distants ; l'installation complète rejouée
 sur ce Mac a utilisé le lot hors ligne.
+
+
+## Essai sur Linux amd64 - 09/11/2026
+
+| Élément | Valeur |
+|---|---|
+| Machine | VM Azure `Standard_D4s_v4`, 4 vCPU, 15 Go de RAM, disque de 40 Go, région `spaincentral` |
+| Système | Ubuntu 24.04.5 LTS, `x86_64` |
+| Docker | Docker Engine 29.9.3 (`linux/amd64`, sans Desktop), Compose 5.7.0, magasin d'images containerd |
+| Installation | Docker installé par le script officiel `get.docker.com` ; supports copiés par archive, sans `.git`, sans certificats |
+
+Séquence exécutée sur la VM vierge, avec accès Internet sans restriction :
+`prepare.sh` (images `amd64` téléchargées depuis Docker Hub et GHCR, certificats
+générés), `start.sh extended`, `validate.sh`, puis `selftest.sh`.
+
+Résultats :
+
+- `validate.sh` : « Environnement valide. », 3 brokers, quorum à 3 votants, URP = 0, Prometheus, Grafana, Kafka UI et JupyterLab sains.
+- `selftest.sh` : « Selftest reussi (tp1 tp2 tp3 tp4 tp5 tp6 tp7 tp9) en 708 s. », sans message d'échec ni d'avertissement.
+- `hote("docker compose ps")` équivalent depuis le conteneur `jupyter` : le socket Docker et le chemin identique à l'hôte fonctionnent sur Linux.
+- Mémoire de la VM après `selftest.sh` : 4 Go utilisés sur 15 Go ; disque : 8,8 Go utilisés sur 38 Go.
+- Les fichiers créés depuis JupyterLab appartiennent à root sur l'hôte (le conteneur tourne en root).
+- Les ports 8080, 3000, 9090 et 9092 sont publiés sur toutes les interfaces de la VM ; seul JupyterLab (8888) est limité à `127.0.0.1`.
+
+Non couvert par cet essai : lot hors ligne `amd64`, mode `full`, notebooks des TP
+exécutés, accès filtré aux registres ou proxy (réseau du client), `reset.sh --yes`
+final (la VM d'essai est jetable).

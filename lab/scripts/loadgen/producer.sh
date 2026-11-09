@@ -38,3 +38,14 @@ exec "$BIN/kafka-producer-perf-test.sh" \
   --throughput "$RATE" \
   --reporting-interval 30000 \
   --command-property acks=all client.id=loadgen-producer linger.ms=20 compression.type=lz4
+
+# awk 'BEGIN { srand(); while (1) { printf "client-%d:%s\n", int(rand()*50), "valeur" ; system("sleep 0.01") } }' \
+# | "$BIN/kafka-console-producer.sh" \
+#     --bootstrap-server "$BS" \
+#     --topic "$TOPIC" \
+#     --property parse.key=true \
+#     --property key.separator=: \
+#     --producer-property acks=all \
+#     --producer-property client.id=loadgen-producer \
+#     --producer-property linger.ms=20 \
+#     --producer-property compression.type=lz4

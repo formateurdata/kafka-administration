@@ -66,6 +66,6 @@ lab/config/kafka/kafka-*/server.properties.before-incident*
 lab/monitoring/prometheus/rules/tp6-custom.yml
 
 livrables-client/plan-chapitres/
-livrables-client/*.md
+livrables-client/Preparation-VM-Kafka-Administration.md
 Apache_Kafka_in_Action.md
 Audit & Cadrage – Formation Kafka Administration (IKAF) - VICAT (Responses) - Form Responses 1.csv
