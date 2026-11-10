@@ -196,4 +196,4 @@ lab/
 | Grafana vide après un `reset` | Prometheus vient de redémarrer | Attendre 1 minute (intervalle de collecte 15 s, fenêtres de calcul 1 min) |
 | JupyterLab répond dans le navigateur mais VS Code ne s'y connecte pas (`404 /login`, `403 _xsrf` dans `docker compose logs jupyter`) | Serveur sans jeton : `/login` n'existe pas et VS Code ne peut pas créer le noyau | Redémarrer avec le jeton fixe : `cd lab && JUPYTER_TOKEN=kafka-lab docker compose up -d jupyter`. Dans VS Code, utiliser `http://localhost:8888/?token=kafka-lab` comme serveur Jupyter existant. Le noyau doit tourner dans le conteneur `jupyter`, pas sur l'hôte. |
 
-Guide détaillé pour le formateur : `../formateur/depannage.md`.
+
