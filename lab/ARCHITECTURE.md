@@ -260,7 +260,7 @@ En production, il faut ajouter les métriques système (node_exporter : disque, 
 
 | Mode (`scripts/start.sh`) | Profils Compose | Services | Mémoire mesurée |
 |---|---|---|---|
-| `core` | aucun | kafka-1..3, tools, kafka-ui | 1,5 Go |
+| `core` | aucun | kafka-1..3, tools, kafka-ui, jupyter | 1,5 Go (jupyter : + 70 Mo au repos) |
 | `extended` | `monitoring`, `load` | + prometheus, grafana, kafka-exporter, loadgen-producer, loadgen-consumer | 4,1 Go |
 | `full` | `monitoring`, `load`, `ecosystem` | + schema-registry, connect | 4,9 Go |
 | (TP7) | `scale` | + kafka-4 | + 0,4 à 0,8 Go |

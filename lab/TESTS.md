@@ -91,7 +91,7 @@ Cycle exécuté : `reset.sh --yes`, `start.sh full`, `validate.sh`, `selftest.sh
 | Mémoire | `kafka-cloud` 612 Mo, `mirrormaker` 407 Mo (`docker stats`, après les tests de réplication) | Mesuré |
 | Notebooks du TP9 | Lab vierge, corrigés des TP1 à TP6 rejoués (`--rejouer`), puis `--executer demo-tp9 tp9` : aucune cellule en erreur, corrigé en 4 min 56 s (21:35 à 21:40). `--tester-enonce tp9` : erreurs seulement dans les vérifications | OK |
 | Bascule, notebook | `orders` à 71 messages : 40 lus sur 3 partitions, 31 restants, 68 relus sur le cloud, 37 doublons (première exécution : 69 et 38) | OK |
-| `offset.lag.max` | 6 partitions, groupe placé 100 messages avant la fin : défaut, groupe à jour 386 doublons (0 lors d'un autre essai), en retard 319 (331) ; à 10, à jour 0 (0), en retard 284 (117). Un groupe à jour ne relit presque rien avec 10 ; un groupe en retard relit des centaines de messages dans les deux cas (KIP-937) | Mesuré |
+| `offset.lag.max` | 6 partitions, groupe placé 100 messages avant la fin : défaut, groupe à jour 386 doublons (0 lors d'un autre essai), en retard 319 (331) ; à 10, à jour 0 (0), en retard 284 (117). Un groupe à jour ne relit presque rien avec 10 ; un groupe en retard relit des centaines de messages dans les deux cas (KAFKA-14666) | Mesuré |
 | Version en ligne de commande | Commandes de `enonce.md` rejouées (21:41 à 21:46) : sorties recopiées dans `corrige.md`. `orders` à 7 871 messages : 39 doublons ; rattrapage de 3 000 messages en moins de 13 s ; `kafka-consumer-groups.sh --reset-offsets --to-latest` puis `--shift-by -100` pour la variante | OK |
 | Démonstration exploitation (J2) | Commandes de la slide rejouées : `audit` créé avec `--replica-assignment 1,2,3`, plan écrit à la main pour la partition 0 vers `[1,2,3]`, `--execute` puis `--verify` : réassignation terminée, ISR `1,2,3` | OK |
 
@@ -201,6 +201,30 @@ Comportements du client Python (confluent-kafka 2.16.0) relevés pendant l'écri
 | `AdminClient` qui a déjà servi, après un changement de coordinateur du groupe (rééquilibrage automatique des leaders, 5 min après le redémarrage d'un nœud) | Le client garde l'ancien coordinateur en cache : `describe_consumer_groups()` renvoie `NOT_COORDINATOR` pendant au moins 57 s, et `list_consumer_group_offsets()` arrête le processus (erreur de segmentation, code 139, reproduit 3 fois). Un client neuf obtient aussitôt le nouveau coordinateur. Constaté le 28/10 en fin de TP3, 5 min après le redémarrage de `kafka-2` au TP1, puis reproduit en déplaçant le leader de `__consumer_offsets-10`. Depuis, `admin()` crée un client neuf à chaque appel (100 clients en 0,4 s) : reproduction rejouée sans erreur |
 | `describe_cluster()` et `describe_configs()` pendant l'incident 5 (Paiements : `kafka-3` annoncé sous le nom `kafka3`, absent du DNS) | Ces requêtes partent vers le broker que les métadonnées désignent comme contrôleur, tiré au hasard en KRaft. Quand c'est le broker 3, elles expirent : `_TIMED_OUT`, `Failed while waiting for controller`. Mesuré les 28 et 29/10 avec un client neuf à chaque essai : pour `describe_configs()`, 3 échecs sur 8, puis 1 sur 12 lors de deux autres séries ; pour `describe_cluster()`, 2 sur 8 ; `list_topics()` répond toujours. Sur 30 clients neufs, `list_topics().controller_id` vaut 3 14 fois ; un rafraîchissement des métadonnées toutes les secondes ne change rien. `bilan()` du TP8 lit donc les brokers dans les métadonnées et refait jusqu'à 8 essais de `sous_min_isr()` (délai de 5 s), en l'affichant |
 
+### Régénération des notebooks après l'audit (10/11/2026)
+
+Sources corrigées (renvois d'étapes passés en 6.x, en-tête du TP7, KAFKA-14666 au lieu de KIP-937, cellule `diff` de la démo du TP8), `docker-compose.yml` avec `LAB_BIND_ADDRESS` (défaut `0.0.0.0`).
+
+| Essai | Résultat |
+|---|---|
+| `docker compose config` avec `LAB_BIND_ADDRESS=127.0.0.1`, profil `ecosystem` | 7 ports publiés, tous sur `127.0.0.1` ; sans la variable, tous sur `0.0.0.0` sauf JupyterLab |
+| Lab vierge, `start.sh extended`, puis `--tester-enonce --executer demo-tp1 tp1 ... demo-tp7 tp7` (15:22 à 15:45 UTC) | 7 démonstrations et 7 corrigés sans cellule en erreur ; énoncés : erreurs seulement dans les vérifications |
+| `demo-tp8`, première exécution à la suite du TP7 | Cellule `%%bash` en erreur : `diff` rend 1 quand `kafka-1` garde le second log dir du TP7. Corrigé : la cellule affiche le code retour de `diff`. Réexécution de `demo-tp8 tp8` sur le même lab : aucune cellule en erreur |
+| Lab vierge, `--rejouer tp1 ... tp6`, puis `--tester-enonce --executer demo-tp9 tp9` (16:08 à 16:11 UTC) | Aucune cellule en erreur ; bascule : 40 lus, 31 restants, 69 relus sur le cloud, 38 doublons |
+| Valeurs citées dans les corrigés | TP6 : lag au-dessus de 5000 au relevé de 60 s, `pending` à 75 s, `firing` à 150 s (texte mis à jour). TP8 : `payments-2` seule menée par `kafka-3`, 4 envois sur 6 expirés (inchangé) ; incident 6 sans alerte passagère `KafkaFencedBrokers` (texte mis à jour). TP7 : avertissement `GETPID` présent (inchangé) |
+
+### Démonstrations en deux versions, terminal et Python (11/11/2026)
+
+Les neuf démonstrations montrent chaque étape en terminal puis en Python ; le Python définit noms et valeurs en tête et attrape les erreurs d'une réexécution.
+
+| Essai | Résultat |
+|---|---|
+| Lab vierge, `start.sh extended`, puis pour M de 1 à 8 : `--executer demo-tpM`, `--rejouer tpM` (23:43 à 00:07 UTC) | Démos 1 à 8 sans cellule en erreur |
+| Lab vierge, `--rejouer tp1 ... tp6`, `--executer demo-tp9` | Première exécution en erreur : `AdminClient` créé sans variable, détruit avant la réponse (`_DESTROY`). Corrigé ; réexécution sans erreur, cloud joignable en 4 s, onprem 500 messages, cloud `None` |
+| Relecture des sorties | `kafka-console-consumer.sh --timeout-ms` affiche une `TimeoutException` sur sa sortie d'erreur et, sans `enable.auto.commit=false`, laisse un groupe `console-consumer-NNNNN` : démo du TP2 corrigée (`--command-property enable.auto.commit=false`, `2>/dev/null`). Bilan de la démo du TP8 pris à la seconde où le TP7 finit : `KafkaFencedBrokers` en `pending` |
+| Lab vierge, `--rejouer tp1`, `--executer demo-tp2`, `--rejouer tp2 ... tp7`, attente sans alerte, `--executer demo-tp8` (00:26 à 00:48 UTC) | Démo du TP2 : 3 messages lus en terminal comme en Python, aucun groupe laissé. Démo du TP8 : aucune alerte, URP 0 |
+| Lab vierge, `--rejouer tp1 tp2`, `--executer demo-tp3` | Sans erreur. Le groupe `console-consumer-NNNNN` listé vient du corrigé du TP2 (cellules `kafka-console-consumer.sh` sans `enable.auto.commit=false`) |
+
 ### VS Code et serveur du lab (30/10)
 
 Extension Jupyter 2025.9.1 sur macOS, lab en mode `extended`. Les requêtes de l'extension, lues dans son code et dans le journal du serveur, ont été rejouées en Python : l'interface de VS Code n'a pas été pilotée. Le cycle `reset.sh`, `start.sh`, `validate.sh`, `selftest.sh` n'a pas été rejoué après cette modification, pour ne pas effacer le lab en cours : seuls les 2 contrôles Jupyter de `validate.sh` l'ont été.
@@ -226,8 +250,8 @@ Extension Jupyter 2025.9.1 sur macOS, lab en mode `extended`. Les requêtes de l
 | Proxy d'entreprise | `prepare.sh` peut échouer (GitHub, registres) | Utiliser le lot hors ligne |
 | Postes avec 8 Go de RAM en mode `extended` | Possible pression mémoire | Utiliser le mode `core` et suivre la supervision sur le poste du formateur |
 | Variante mTLS (keystore `client-alice`) | Configuration du listener à adapter (`ssl.client.auth`) | Variante avancée, non incluse dans le selftest |
-| `offline-bundle.sh save` avec l'image JupyterLab, surtout pour une autre architecture (construction émulée) | Lot sans image JupyterLab, ou construction longue | Constituer le lot la veille et vérifier `docker image inspect kafka-lab/jupyter:1` après `load` |
-| Conteneur `jupyter` sur Windows (WSL2) : montage au même chemin que l'hôte, socket Docker (Linux testé le 09/11/2026) | `hote()` inutilisable si le chemin ou le socket diffère | Tester `hote("docker compose ps")` sur un poste type |
+| `offline-bundle.sh save` avec l'image JupyterLab, surtout pour une autre architecture (construction émulée) | Lot sans image JupyterLab, ou construction longue | Constituer le lot la veille et vérifier `docker image inspect m0uaad/kafka-lab-jupyter:1` après `load` |
+| Conteneur `jupyter` sur Windows (WSL2) : montage au même chemin que l'hôte, socket Docker (Linux testé le 09/11/2026) | `!docker compose ...` inutilisable depuis un notebook si le chemin ou le socket diffère | Exécuter `!docker compose ps` dans un notebook sur un poste type |
 | Chemin de la formation contenant des espaces | Montage ou `docker compose` en échec dans le conteneur | Placer la formation dans un chemin sans espace |
 | Parcours dans l'interface de VS Code : *Existing Jupyter Server...*, exécution de cellules | Écart possible avec les requêtes rejouées le 30/10 | Essayer sur le poste du formateur avant la session |
 

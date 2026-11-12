@@ -22,7 +22,7 @@ Les `.ipynb` sont **générés** : ne jamais les modifier à la main, la génér
 | Formation complète | Montée au même chemin que sur l'hôte (`FORMATION_DIR`, exporté par `scripts/lib.sh`), pour `hote()`, `labkafka.py` et `build_notebooks.py` |
 | Kafka | `BS` (INTERNAL) et `BS_SECURE` (SECURE), mêmes valeurs que dans `tools` |
 | Docker | Socket monté : `docker compose` fonctionne depuis un notebook comme dans un terminal ouvert dans `lab/` |
-| Module commun | `labkafka.py`, importé par `from labkafka import *` |
+| Module commun | `labkafka.py`, importable par `from labkafka import *` pour un usage libre ; aucun notebook de TP ou de démo ne l'importe (voir plus bas) |
 
 `labkafka.py` fournit :
 
@@ -97,7 +97,7 @@ Conventions :
 - Texte en français avec accents ; code et commentaires de code sans accents, comme dans les scripts du lab.
 - Une zone `# TODO` initialise toutes les variables qu'elle demande (`None`, `[]`, `{}`). Ainsi l'énoncé s'exécute d'un bout à l'autre et seules les vérifications échouent, avec `ARevoir`.
 - Une démonstration d'échec (refus d'ACL, broker arrêté) attrape l'exception et l'affiche : le corrigé doit s'exécuter sans erreur.
-- Chaque cellule de vérification commence par `# Verification 7.x`.
+- Chaque cellule de vérification commence par `# Verification 6.x`.
 
 ## Générer et exécuter
 

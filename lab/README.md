@@ -58,14 +58,14 @@ Mesures réelles sur le poste de test (voir [TESTS.md](TESTS.md)), après une mi
 | Shell | bash ou zsh | Les scripts sont en bash |
 | Navigateur | récent | Kafka UI, Grafana, Prometheus |
 
-Windows avec WSL2 et Linux x86_64 n'ont pas été testés. Les images utilisées existent pour `linux/amd64` et `linux/arm64`.
+Linux x86_64 a été testé le 09/11/2026 sur une VM Ubuntu 24.04 (voir `TESTS.md`) ; Windows avec WSL2 n'a pas été testé. Les images utilisées existent pour `linux/amd64` et `linux/arm64`.
 Sous Windows, lancer les scripts depuis un terminal WSL2, avec le dossier du lab dans le système de fichiers Linux (`~/...`) et non sous `/mnt/c` : les montages depuis `/mnt/c` sont lents et posent des problèmes de droits.
 
 ### Réseau
 
 - Accès Internet nécessaire une seule fois, pour `scripts/prepare.sh` : images Docker préconstruites depuis les registres.
 - Sans Internet en salle : préparer un lot hors ligne (section 4).
-- Ports utilisés sur l'hôte : 9092, 9192, 9292, 9392, 8080, 8888, 9090, 3000, 8081, 8083. Tous sauf les quatre premiers se changent dans `.env` (voir `env.template`).
+- Ports utilisés sur l'hôte : 9092, 9192, 9292, 9392, 8080, 8888, 9090, 3000, 8081, 8083. Tous sauf les quatre premiers se changent dans `.env` (voir `env.template`). Ils sont publiés sur toutes les interfaces, sauf JupyterLab (`127.0.0.1`) ; sur une VM atteinte par tunnel SSH, `LAB_BIND_ADDRESS=127.0.0.1` dans `.env` les limite tous à la machine elle-même.
 
 ## 3. Installation (la veille de la formation)
 
@@ -95,7 +95,7 @@ scripts/validate.sh && scripts/selftest.sh
 scripts/reset.sh --yes      # repartir d'un lab vierge pour les stagiaires
 ```
 
-`selftest.sh` rejoue les commandes clés des TP1 à TP7 : panne de broker, SCRAM et ACL, quotas, métriques, ajout de broker, réassignation, log dir, rolling restart et décommissionnement. Il nettoie ce qu'il crée.
+`selftest.sh` rejoue les commandes clés des TP1 à TP7 et du TP9 : panne de broker, SCRAM et ACL, quotas, métriques, ajout de broker, réassignation, log dir, rolling restart, décommissionnement et réplication MirrorMaker 2. Il nettoie ce qu'il crée.
 
 ## 4. Salle sans Internet : lot hors ligne
 
@@ -188,7 +188,7 @@ lab/
 
 | Symptôme | Cause probable | Action |
 |---|---|---|
-| `start.sh` échoue avec « port is already allocated » | Port utilisé par une autre application | Changer le port dans `.env`, ou arrêter l'application. Les ports 9092 à 9392 sont fixes. |
+| `start.sh` refuse de démarrer : « Port 8080 (kafka-ui) deja utilise par … », ou `docker compose up` échoue avec « port is already allocated » | Port pris par une autre application ou par un conteneur d'un autre projet ; `start.sh` le nomme | Arrêter ce qui occupe le port, ou changer le port dans `.env` (8080, 8888, 9090, 3000, 8081, 8083). Les ports 9092 à 9392 sont fixes. |
 | Un nœud Kafka redémarre en boucle ou reste `unhealthy` | Mémoire Docker insuffisante, `server.properties` invalide | `docker compose logs kafka-N --tail 50` ; corriger ou `scripts/reset.sh` |
 | `validate.sh` : « Prometheus : 3 noeuds Kafka collectés (up=0) » | Image incompatible ou règles JMX incorrectes | Vérifier les références de livraison, `scripts/prepare.sh --no-pull`, puis les journaux Kafka |
 | Commandes CLI lentes et nombreuses lignes `WARN` | Un nœud est arrêté : le client essaie encore son adresse | Normal pendant les TP de panne. Filtrer avec `2>/dev/null` si besoin. |
