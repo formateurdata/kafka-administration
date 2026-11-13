@@ -108,11 +108,11 @@ scripts/incident.sh list
 ```bash
 # [tools] fonctions de la boîte à outils (à redéfinir dans chaque nouvelle session tools)
 q() { wget -qO- --post-data "query=$1" http://prometheus:9090/api/v1/query; echo; }
-alertes() {
+alerts() {
   wget -qO- http://prometheus:9090/api/v1/alerts | grep -oE '"(alertname|state)":"[^"]+"' \
     | cut -d'"' -f4 | paste -d: - - | sort -u | paste -sd' ' -
 }
-bilan() {
+summary() {
   echo "== $(date +%T) quorum"
   kafka-metadata-quorum.sh --bootstrap-server $BS describe --status | grep -E 'LeaderId|MaxFollowerLag:'
   echo "== brokers"
@@ -120,9 +120,9 @@ bilan() {
   echo "== URP : $(kafka-topics.sh --bootstrap-server $BS --describe --under-replicated-partitions | grep -c Partition)" \
        " sous min ISR : $(kafka-topics.sh --bootstrap-server $BS --describe --under-min-isr-partitions | grep -c Partition)" \
        " indisponibles : $(kafka-topics.sh --bootstrap-server $BS --describe --unavailable-partitions | grep -c Partition)"
-  echo "== alertes : [$(alertes)]"
+  echo "== alertes : [$(alerts)]"
 }
-bilan
+summary
 ```
 
 ### 8.2 Injection et reproduction
@@ -138,7 +138,7 @@ Reproduction du symptôme, par celui qui diagnostique :
 |---|---|
 | Logistique | `/tmp/incident4/send-shipment.sh` dans `tools` |
 | Paiements | Les 6 envois ci-dessous, dans `tools` |
-| Stockage | `alertes` dans `tools`, et le panneau « Donnees stockees par broker » de Grafana |
+| Stockage | `alerts` dans `tools`, et le panneau « Donnees stockees par broker » de Grafana |
 
 ```bash
 # [tools] ticket Paiements : 6 paiements, un par clé
@@ -152,7 +152,7 @@ for k in PAY-9001 PAY-9002 PAY-9003 PAY-9004 PAY-9005 PAY-9006; do echo "$k|{\"a
 
 | Question | Commande |
 |---|---|
-| État général | `bilan` |
+| État général | `summary` |
 | État des conteneurs | `docker compose ps` (hôte) |
 | Quorum en détail | `kafka-metadata-quorum.sh --bootstrap-server $BS describe --replication` |
 | Brokers vus par un client | `kafka-broker-api-versions.sh --bootstrap-server $BS \| grep '^kafka'` |
@@ -186,7 +186,7 @@ scripts/incident.sh N repair
 
 ```bash
 # [tools] bilan de fin de tour, à comparer au bilan de référence
-bilan
+summary
 ```
 
 `repair` réapplique l'état de référence, même si votre correction est déjà la bonne. Pour le ticket Logistique, il envoie un événement de plus. Pour le ticket Paiements, il redémarre `kafka-3` une seconde fois, ce qui prend environ 15 s.
@@ -195,7 +195,7 @@ bilan
 
 ### 9.1 Préparation
 
-`bilan` montre un leader de quorum, les brokers `kafka-1`, `kafka-2` et `kafka-3`, toutes les valeurs à 0 et `alertes : []`. Juste après le TP7, une alerte `pending` (`KafkaFencedBrokers`, `KafkaUnderMinIsrPartitions`) peut subsister une trentaine de secondes après l'arrêt de `kafka-4` : attendez, puis relancez `bilan`. Si une alerte reste active, signalez-le au formateur avant de commencer.
+`summary` montre un leader de quorum, les brokers `kafka-1`, `kafka-2` et `kafka-3`, toutes les valeurs à 0 et `alertes : []`. Juste après le TP7, une alerte `pending` (`KafkaFencedBrokers`, `KafkaUnderMinIsrPartitions`) peut subsister une trentaine de secondes après l'arrêt de `kafka-4` : attendez, puis relancez `summary`. Si une alerte reste active, signalez-le au formateur avant de commencer.
 
 ### 9.2 Ticket Logistique résolu
 
@@ -206,20 +206,20 @@ bilan
 ### 9.3 Ticket Paiements résolu
 
 - Les 6 envois passent sans aucune ligne `ERROR`.
-- `bilan` : les brokers sont annoncés sous les noms `kafka-1`, `kafka-2`, `kafka-3` ; URP, sous min ISR et indisponibles à 0.
+- `summary` : les brokers sont annoncés sous les noms `kafka-1`, `kafka-2`, `kafka-3` ; URP, sous min ISR et indisponibles à 0.
 - Les alertes de réplication sont levées dans les 1 à 2 minutes qui suivent la correction.
 
 ### 9.4 Ticket Stockage résolu
 
 - La configuration de `clickstream` porte une limite de durée et de taille conforme à la politique de l'équipe Data.
 - `q 'sum by (instance) (kafka_log_log_size)'` donne moins de 250 Mo par nœud (262 144 000 octets).
-- `alertes` ne contient plus `KafkaBrokerLogSizeHigh`, environ 1 minute après la correction.
+- `alerts` ne contient plus `KafkaBrokerLogSizeHigh`, environ 1 minute après la correction.
 - Le topic existe toujours, avec ses données récentes.
 
 ## 10. Vérification
 
 - Trois fiches remplies, chacune relue et signée par l'injecteur. La cause tient en une phrase, et la validation cite des commandes et leurs résultats.
-- `bilan` final identique au bilan de référence de 7.1.
+- `summary` final identique au bilan de référence de 7.1.
 - Côté hôte, `ls config/kafka/kafka-3/` ne montre pas de fichier `server.properties.before-incident5` : le `repair` du ticket Paiements a bien été lancé.
 
 ## 11. Questions de réflexion

@@ -221,16 +221,16 @@ lag() {
   kafka-consumer-groups.sh --bootstrap-server $BS --describe --group loadgen-consumers 2>/dev/null \
     | awk '$1=="loadgen-consumers" {s+=$6} END {print s}'
 }
-alertes() {
+alerts() {
   wget -qO- http://prometheus:9090/api/v1/alerts | grep -oE '"(alertname|state)":"[^"]+"' \
     | cut -d'"' -f4 | paste -d: - - | sort -u | paste -sd' ' -
 }
-echo "lag=$(lag) alertes=[$(alertes)]"
+echo "lag=$(lag) alertes=[$(alerts)]"
 ```
 
 ```bash
 # [tools] terminal B : boucle d'observation (environ 3 min 30), lancez-la puis passez au terminal A
-for i in $(seq 1 12); do echo "$(date +%T) lag=$(lag) alertes=[$(alertes)]"; sleep 15; done
+for i in $(seq 1 12); do echo "$(date +%T) lag=$(lag) alertes=[$(alerts)]"; sleep 15; done
 ```
 
 ```bash
@@ -252,7 +252,7 @@ docker compose start loadgen-consumer
 
 ```bash
 # [tools] terminal B : rattrapage
-for i in $(seq 1 6); do echo "$(date +%T) lag=$(lag) alertes=[$(alertes)]"; sleep 15; done
+for i in $(seq 1 6); do echo "$(date +%T) lag=$(lag) alertes=[$(alerts)]"; sleep 15; done
 ```
 
 ### 8.8 Défi
@@ -282,7 +282,7 @@ docker compose stop loadgen-producer
 
 ```bash
 # [tools] terminal B
-for i in $(seq 1 10); do echo "$(date +%T) alertes=[$(alertes)]"; sleep 15; done
+for i in $(seq 1 10); do echo "$(date +%T) alertes=[$(alerts)]"; sleep 15; done
 ```
 
 ```bash
@@ -303,7 +303,7 @@ docker compose ps loadgen-producer loadgen-consumer
 # [tools] attendez 1 à 2 minutes après le redémarrage du producteur
 kafka-configs.sh --bootstrap-server $BS --describe --entity-type broker-loggers --entity-name $L \
   | grep ' org.apache.kafka.controller='
-echo "lag=$(lag) alertes=[$(alertes)]"
+echo "lag=$(lag) alertes=[$(alerts)]"
 ```
 
 ## 9. Résultats attendus
@@ -408,7 +408,7 @@ Après l'arrêt du producteur : alerte absente pendant environ 45 s, puis `Kafka
 | Topic `inventory` | `kafka-topics.sh --bootstrap-server $BS --describe --topic inventory` | 3 partitions, `cleanup.policy=compact` |
 | Groupes | `kafka-consumer-groups.sh --bootstrap-server $BS --list --state` | Ni `analytics` ni `console-consumer-*` |
 | Règles | `ls monitoring/prometheus/rules/` (hôte) | `kafka-alerts.yml` seul |
-| Alertes | `alertes` | Vide |
+| Alertes | `alerts` | Vide |
 | Débit | `q 'sum(rate(kafka_server_brokertopicmetrics_messagesin_total{topic="loadgen"}[1m]))'` | Environ 100 |
 
 Notez dans votre compte rendu les trois heures relevées en 7.7 : arrêt, passage en `pending`, passage en `firing`.

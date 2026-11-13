@@ -136,7 +136,7 @@ def tester_enonce(nb, dossier, nom):
         erreurs = [o for o in c.get("outputs", []) if o.output_type == "error"]
         if not erreurs:
             continue
-        verification = c.source.startswith("# Verification")
+        verification = c.source.startswith(("# Verification", "# V\u00e9rification"))
         print("  %s %s -> %s" % ("verification" if verification else "ERREUR", c.source.splitlines()[0][:60],
                                  erreurs[0].ename))
         if not verification:

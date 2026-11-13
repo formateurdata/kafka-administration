@@ -210,8 +210,8 @@ docker compose --profile mirror stop mirrormaker
 # [tools]
 kafka-producer-perf-test.sh --bootstrap-server $BS --topic orders --num-records 3000 --record-size 200 \
   --throughput -1 | tail -1
-fin() { kafka-get-offsets.sh --bootstrap-server $1 --topic $2 | awk -F: '{s += $3} END {print s}'; }
-echo "retard : $(( $(fin $BS orders) - $(fin $BS_CLOUD onprem.orders) ))"
+end() { kafka-get-offsets.sh --bootstrap-server $1 --topic $2 | awk -F: '{s += $3} END {print s}'; }
+echo "retard : $(( $(end $BS orders) - $(end $BS_CLOUD onprem.orders) ))"
 ```
 
 ```bash
@@ -221,7 +221,7 @@ docker compose --profile mirror start mirrormaker
 
 ```bash
 # [tools] à relancer jusqu'à un retard nul ; noter l'heure
-date +%T; echo "retard : $(( $(fin $BS orders) - $(fin $BS_CLOUD onprem.orders) ))"
+date +%T; echo "retard : $(( $(end $BS orders) - $(end $BS_CLOUD onprem.orders) ))"
 ```
 
 ### 8.7 Défi
@@ -236,7 +236,7 @@ docker compose --profile mirror restart mirrormaker
 
 ```bash
 # [tools]
-echo "refunds : $(fin $BS refunds) - onprem.refunds : $(fin $BS_CLOUD onprem.refunds)"
+echo "refunds : $(end $BS refunds) - onprem.refunds : $(end $BS_CLOUD onprem.refunds)"
 kafka-configs.sh --bootstrap-server $BS --alter --entity-type topics --entity-name orders \
   --add-config retention.ms=259200000
 sleep 20
@@ -302,7 +302,7 @@ docker compose --profile mirror stop mirrormaker kafka-cloud
 | Contrôle | Commande | Attendu |
 |---|---|---|
 | Réplication active | `bash scripts/validate.sh` (sur l'hôte, profil `mirror` démarré) | `MirrorMaker 2 actif (heartbeats du cluster cloud : ...)` |
-| Même nombre de messages | `fin $BS orders` et `fin $BS_CLOUD onprem.orders` | Égaux |
+| Même nombre de messages | `end $BS orders` et `end $BS_CLOUD onprem.orders` | Égaux |
 | Source intacte | `kafka-topics.sh --bootstrap-server $BS --list \| grep -E '^(mm2-\|heartbeats)'` | Rien |
 | Groupe traduit | `kafka-consumer-groups.sh --bootstrap-server $BS_CLOUD --describe --group expedition` | Offsets sur `onprem.orders` |
 | ACL | `kafka-acls.sh --bootstrap-server $BS_CLOUD --list --principal User:mm2` | 4 ressources |
