@@ -227,7 +227,7 @@ Les identifiants de répertoire, les offsets et les horodatages varient. Le `Lea
 [ OK ] Environnement valide.
 ```
 
-`docker compose ps` affiche `kafka-1`, `kafka-2` et `kafka-3` en `Up ... (healthy)`, ainsi que `kafka-tools` et `kafka-ui`. En mode `extended` s'ajoutent `prometheus`, `grafana`, `kafka-exporter`, `loadgen-producer` et `loadgen-consumer`.
+`docker compose ps` affiche `kafka-1`, `kafka-2` et `kafka-3` en `Up ... (healthy)`, ainsi que `jupyter`, `kafka-tools` et `kafka-ui`. En mode `extended` s'ajoutent `prometheus`, `grafana`, `kafka-exporter`, `loadgen-producer` et `loadgen-consumer`.
 
 ### 9.2 Configuration KRaft
 
