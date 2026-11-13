@@ -60,6 +60,15 @@ bash scripts/prepare.sh --no-pull
 
 ## 4. Démarrer et vérifier
 
+Vous accéderez aux interfaces par un tunnel SSH (section 5). Publiez donc les ports du lab sur la seule interface locale de la VM :
+
+```bash
+cp env.template .env
+sed -i 's/^LAB_BIND_ADDRESS=.*/LAB_BIND_ADDRESS=127.0.0.1/' .env
+```
+
+Puis démarrez :
+
 ```bash
 bash scripts/start.sh extended
 bash scripts/validate.sh
@@ -178,8 +187,8 @@ docker compose logs kafka-1 --tail 50
 
 Ce lab est un environnement de formation, pas un modèle de production. Ses réglages sont volontairement ouverts :
 
-- Kafka UI, Grafana (identifiants fixes) et Prometheus sont publiés sur toutes les interfaces réseau de la VM, sans authentification forte. Les ports Kafka 9092 à 9392 le sont aussi, et le compte `ANONYMOUS` y est super-utilisateur. Quiconque joint la VM sur ces ports administre le cluster.
-- Docker contourne un pare-feu local de type `ufw` pour les ports qu'il publie. Filtrez ces ports au niveau réseau (groupe de sécurité, pare-feu de l'infrastructure) et n'autorisez que SSH (port 22) depuis les postes de test.
+- Sans le réglage `LAB_BIND_ADDRESS=127.0.0.1` de la section 4, Kafka UI, Grafana (identifiants fixes), Prometheus et, en mode `full`, Schema Registry (8081) et l'API REST de Kafka Connect (8083) sont publiés sur toutes les interfaces réseau de la VM, sans authentification. Les ports Kafka 9092 à 9392 le sont aussi, et le compte `ANONYMOUS` y est super-utilisateur. Quiconque joint la VM sur ces ports administre le cluster ; l'API de Connect permet en plus de lire et d'écrire des fichiers dans son conteneur. Vérifiez avec `ss -ltn` que ces ports n'écoutent que sur `127.0.0.1`.
+- Docker contourne un pare-feu local de type `ufw` pour les ports qu'il publie. Même avec ce réglage, filtrez au niveau réseau (groupe de sécurité, pare-feu de l'infrastructure) et n'autorisez que SSH (port 22) depuis les postes de test.
 - JupyterLab a accès au socket Docker de la VM, donc un accès root. Il n'est lié qu'à `127.0.0.1` pour cette raison.
 - N'exposez jamais cette VM sur Internet.
 
