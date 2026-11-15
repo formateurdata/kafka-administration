@@ -1,0 +1,36 @@
+# Copier ce fichier en terraform.tfvars (non suivi par git) et remplacer les
+# valeurs d'exemple : adresses IP et identifiant d'abonnement.
+
+# Adresses publiques autorisees en SSH. Connaitre la sienne :
+#   curl -s -4 https://ifconfig.me
+# Pour ajouter celle du stagiaire : README.md, section 6.
+allowed_ssh_cidrs = [
+  "203.0.113.10/32", # formateur
+  # "198.51.100.25/32", # stagiaire
+]
+
+# Region et taille : verifier le quota de vCPU avant (README.md, section 3).
+# Sur l'abonnement du formateur, le quota de la famille DSv5 est a 0
+# (francecentral et spaincentral) ; la famille DSv4 a 10 vCPU en spaincentral.
+# Avec du quota DSv5, ces deux lignes peuvent etre retirees
+# (defauts : francecentral, Standard_D4s_v5).
+location = "spaincentral"
+vm_size  = "Standard_D4s_v4"
+
+# L'arret automatique (Microsoft.DevTestLab/schedules) n'existe pas en
+# spaincentral : arreter la VM a la main le soir (az vm deallocate).
+# Dans une region ou il existe, retirer cette ligne (defaut : "1900").
+auto_shutdown_time = ""
+
+# Jeton de JupyterLab, pour brancher VS Code sur le serveur de la VM.
+# Reglage de lab : jeton fixe, en clair, sur un port lie a 127.0.0.1.
+# Retirer cette ligne pour un JupyterLab sans jeton.
+jupyter_token = "kafka-lab"
+
+# Abonnement Azure : az account show --query id -o tsv
+# Ou retirer cette ligne et exporter ARM_SUBSCRIPTION_ID.
+subscription_id = "00000000-0000-0000-0000-000000000000"
+
+# Autres valeurs par defaut, a decommenter pour les changer (README.md, section 10).
+# lab_mode = "extended"
+# repo_ref = "main"

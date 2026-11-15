@@ -1,0 +1,12 @@
+# Etat Terraform : contient la cle privee SSH de la VM
+*.tfstate
+*.tfstate.*
+.terraform/
+crash.log
+
+# Valeurs locales (abonnement, adresses IP)
+terraform.tfvars
+*.auto.tfvars
+
+# Cle privee SSH generee
+.ssh/
