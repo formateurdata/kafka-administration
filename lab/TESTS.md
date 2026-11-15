@@ -237,6 +237,19 @@ Sources des 9 démonstrations et des 9 TP : variables, fonctions, classes et att
 | Lab vierge, `--rejouer tp1 ... tp6`, puis `--tester-enonce --executer demo-tp9 tp9` (23:04 à 23:22 UTC) | Sans erreur ; bascule : 40 lus, 31 restants, 68 relus sur le cloud, 37 doublons |
 | Valeurs citées dans les corrigés | TP6 : lag au-dessus de 5000 au relevé de 60 s, `pending` à 75 s, `firing` à 135 s (texte mis à jour, 150 s auparavant) ; `KafkaLoadgenNoTraffic` en `firing` à t+120 s. TP8 : `payments-2` seule menée par `kafka-3`, 4 envois sur 6 expirés ; incident 6 avec la seule `KafkaBrokerLogSizeHigh` (inchangés). TP7 : avertissement `GETPID` présent (inchangé) |
 
+### TP sans code à écrire (14 et 15/11/2026)
+
+Sources des 9 TP réécrites pour des participants peu à l'aise en Python : une cellule `# TODO` ne demande plus de code, seulement des réglages, des réponses ou des prévisions `PREDICTED_...` ; le code est fourni, commenté, sous `if filled(...)` ; le corrigé donne les réponses expliquées en commentaire, puis le même code. Les étapes et les commandes ne changent pas : `enonce.md` et `corrige.md` restent valables. Sources d'origine sauvegardées dans `formateur/sauvegardes/sources-notebooks-2026-11-14/`.
+
+| Essai | Résultat |
+|---|---|
+| Contrôle de chaque source : génération dans une copie, `pyflakes` sur l'énoncé et le corrigé, recherche de `...` restés dans le corrigé | Aucun `...` restant. Avertissements sans effet : variables lues seulement dans les `{}` des lignes `!` (TP7), `admin` inutilisé dans `with_retry` du TP8 (antérieur) |
+| Lab vierge, `start.sh extended`, puis `--tester-enonce --executer demo-tpM tpM` pour M de 1 à 4 (fin à 22:31 UTC le 14/11) | Démos et corrigés sans cellule en erreur, toutes les vérifications des corrigés à OK ; énoncés aux `...` : erreurs seulement dans les vérifications, aucune modification du cluster |
+| `demo-tp5 tp5` à la suite | Corrigé en erreur à la nouvelle vérification de 6.4 : les cellules qui lisent le journal de l'autoriseur passaient `cat $$(ls -tr ...)`, qu'IPython transmet tel quel au shell (`sh: syntax error: unexpected "("`). L'erreur était déjà dans le corrigé précédent, sans vérification pour la voir. Corrigé (`ls -tr kafka-authorizer.log* \| xargs cat`) ; même motif corrigé dans la cellule de 6.1 du TP8 (`echo -n` puis `grep -c`) |
+| Lab vierge, `--rejouer tp1 ... tp4`, puis `--tester-enonce --executer` de `demo-tp5 tp5` à `demo-tp8 tp8`, à la suite (fin à 23:08 UTC le 14/11) | Sans erreur ; toutes les vérifications des corrigés à OK ; énoncés : erreurs seulement dans les vérifications |
+| Lab vierge (23:08 UTC le 14/11), `--rejouer tp1 ... tp6`, `--executer demo-tp9`, puis `--tester-enonce --executer tp9` | Démo sans erreur. Test de l'énoncé interrompu (code 137) : conteneur `jupyter` recréé de l'extérieur à 23:26 UTC, avec le jeton de VS Code mais sans `FORMATION_DIR` (formation montée sur `/formation`, `docker exec -w` impossible). TP9 rejoué sur le même lab dans un conteneur ponctuel du service (`FORMATION_DIR=... docker compose run --rm --no-deps jupyter ...`), sans toucher au conteneur `jupyter`, 23:29 à 23:32 UTC : sans erreur ; toutes les vérifications du corrigé à OK ; énoncé : erreurs seulement dans les vérifications. Bascule : 40 lus, 31 restants, 69 relus sur le cloud, 38 doublons ; coupure : retard de 3000, rattrapage en 10 s |
+| Valeurs citées dans les corrigés | TP6 : lag au-dessus de 5000 et `pending` dès le relevé de 60 s, `firing` à 120 s (texte mis à jour). TP7 : avertissement `GETPID` présent, sur `kafka-3` (texte mis à jour). TP8 : seule `payments-1` menée par `kafka-3`, 1 envoi sur 6 expiré (`PAY-9006`) ; 31 partitions sous-répliquées au premier bilan ; `kafka-3` sain et URP à 0 en 16 s, alertes levées à 31 s ; incident 6 avec la seule `KafkaBrokerLogSizeHigh`, taille sous le seuil 15 à 30 s après la correction, alerte levée à 45 s (textes mis à jour) |
+
 ### VS Code et serveur du lab (30/10)
 
 Extension Jupyter 2025.9.1 sur macOS, lab en mode `extended`. Les requêtes de l'extension, lues dans son code et dans le journal du serveur, ont été rejouées en Python : l'interface de VS Code n'a pas été pilotée. Le cycle `reset.sh`, `start.sh`, `validate.sh`, `selftest.sh` n'a pas été rejoué après cette modification, pour ne pas effacer le lab en cours : seuls les 2 contrôles Jupyter de `validate.sh` l'ont été.
@@ -418,3 +431,26 @@ Résultats :
 Non couvert par cet essai : lot hors ligne `amd64`, mode `full`, notebooks des TP
 exécutés, accès filtré aux registres ou proxy (réseau du client), `reset.sh --yes`
 final (la VM d'essai est jetable).
+
+## Déploiement sur une VM Azure par Terraform - 13/11/2026
+
+Première exécution de `infra/azure/` (Terraform 1.17.2, `azurerm` 4.81.0), abonnement
+du formateur, région `spaincentral`, VM `Standard_D4s_v4` (4 vCPU, 16 Go), Ubuntu 24.04
+x86_64, commit `22445de` du dépôt cloné sur la VM.
+
+Résultats :
+
+- `scripts/bootstrap.sh` lancé par cloud-init : statut `OK`, de 18:15:28 à 18:18:50 UTC, soit 3 min 22 s pour Docker Engine, le clone, `prepare.sh`, `start.sh extended` et `validate.sh`.
+- `validate.sh` : « Environnement valide. », 3 nœuds Kafka collectés par Prometheus, aucune alerte, Grafana, kafka-exporter et générateur de charge démarrés.
+- 11 conteneurs en fonctionnement ; ports 3000, 8080, 8888, 9090 et 9092 en écoute sur `127.0.0.1` seulement.
+- SSH joignable depuis la seule adresse autorisée par le groupe de sécurité.
+
+Anomalies rencontrées :
+
+- Quota de vCPU à 0 pour la famille DSv5 en `francecentral` et en `spaincentral` : la taille par défaut `Standard_D4s_v5` est refusée. Contournement : `Standard_D4s_v4` en `spaincentral`.
+- L'arrêt automatique (`Microsoft.DevTestLab/schedules`) n'existe pas en `spaincentral` : désactivé par `auto_shutdown_time = ""`.
+- Après la suppression du groupe de ressources en `francecentral` et sa recréation sous le même nom en `spaincentral`, Azure a répondu « introuvable » par intermittence sur des ressources existantes (lectures de Terraform et de `az`) ; le sous-réseau a dû être réimporté dans l'état.
+
+Non couvert par cet essai : tunnel SSH et interfaces web depuis le poste, `selftest.sh`,
+notebooks des TP, mode `full`, redémarrage du lab après un arrêt de la VM, accès d'un
+second poste (stagiaire).

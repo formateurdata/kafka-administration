@@ -4,8 +4,8 @@ Les TP se font dans JupyterLab, servi par le conteneur `jupyter` du lab sur http
 
 | Fichier | Public | Contenu |
 |---|---|---|
-| `tps/jourN/tpM_*/enonce.ipynb` | Participants | Les 14 points du format de TP. Pour chaque étape : une explication, un exemple en ligne de commande, une zone `# TODO` à compléter en Python, une cellule de vérification |
-| `tps/jourN/tpM_*/corrige.ipynb` | Formateur | Les mêmes cellules, avec les solutions commentées, les points à faire dire, les réponses aux questions. Il a été exécuté sur le lab : ses sorties sont réelles, avec leur date en tête |
+| `tps/jourN/tpM_*/enonce.ipynb` | Participants | Les 14 points du format de TP. Pour chaque étape : une explication, un exemple en ligne de commande, une cellule `# TODO` où le participant remplace chaque `...` par un réglage, une réponse ou une prévision (le code est fourni, commenté), une cellule de vérification |
+| `tps/jourN/tpM_*/corrige.ipynb` | Formateur | Les mêmes cellules, avec les réponses expliquées en commentaire, les points à faire dire, les réponses aux questions. Il a été exécuté sur le lab : ses sorties sont réelles, avec leur date en tête |
 | `tps/jourN/tpM_*/notebook.source.py` | Mainteneur | La source des deux notebooks |
 | `demos-tp/demo-tpM.ipynb` | Formateur, à l'écran | La démonstration de 5 minutes qui ouvre chaque TP (texte à dire : [formateur/demos-ouverture-tp.md](../../formateur/demos-ouverture-tp.md)) |
 
@@ -38,7 +38,7 @@ Les `.ipynb` sont **générés** : ne jamais les modifier à la main, la génér
 
 `tools()` et `hote()` renvoient la sortie de la commande (texte), avec le code retour dans `.code`. Par défaut ils l'affichent aussi ; `afficher=False` la garde silencieuse pour la traiter en Python.
 
-**Démonstrations et TP : sans `labkafka`.** Les notebooks montrent le travail tel qu'on le fait en entreprise, sans module caché. Pour le terminal : une ligne `!commande` ou une cellule `%%bash` (`!docker exec kafka-tools kafka-topics.sh --bootstrap-server $BS ...` pour les outils Kafka, `!docker compose ...` pour le lab). `output = !command` range les lignes de la sortie dans une liste (`output.n` les joint en un texte) ; dans une ligne `!`, `{expression}` insère une valeur Python et les accolades littérales se doublent (`{{{{.Name}}}}` donne `{{.Name}}` à Docker). Pour Python : `confluent-kafka` directement (`AdminClient`, `Producer`, `Consumer`). Chaque TP commence par une cellule de connexion visible (`BS`, `CONF`, `LAB_DIR`, `os.chdir(LAB_DIR)` : les cellules `!docker compose` et les chemins `config/...` partent du dossier `lab/`) et définit lui-même ses deux fonctions d'aide `wait_for()` et `table()`. Les vérifications sont des `assert` suivis d'un `print("OK ...")`. Un client `AdminClient(CONF)` est créé dans chaque cellule qui en a besoin : un client qui a déjà servi garde en cache le coordinateur des groupes et échoue quand il change de broker. Aucune zone `# TODO` dans les démonstrations : elles montrent le code et l'expliquent. `build_notebooks.py` ne compile pas les cellules qui contiennent `!` ou `%` (syntaxe IPython). `labkafka.py` n'est plus importé par aucun notebook.
+**Démonstrations et TP : sans `labkafka`.** Les notebooks montrent le travail tel qu'on le fait en entreprise, sans module caché. Pour le terminal : une ligne `!commande` ou une cellule `%%bash` (`!docker exec kafka-tools kafka-topics.sh --bootstrap-server $BS ...` pour les outils Kafka, `!docker compose ...` pour le lab). `output = !command` range les lignes de la sortie dans une liste (`output.n` les joint en un texte) ; dans une ligne `!`, `{expression}` insère une valeur Python et les accolades littérales se doublent (`{{{{.Name}}}}` donne `{{.Name}}` à Docker). Pour Python : `confluent-kafka` directement (`AdminClient`, `Producer`, `Consumer`). Chaque TP commence par une cellule de connexion visible (`BS`, `CONF`, `LAB_DIR`, `os.chdir(LAB_DIR)` : les cellules `!docker compose` et les chemins `config/...` partent du dossier `lab/`) et définit lui-même ses trois fonctions d'aide `wait_for()`, `table()` et `filled()`. Les vérifications sont des `assert` suivis d'un `print("OK ...")`. Un client `AdminClient(CONF)` est créé dans chaque cellule qui en a besoin : un client qui a déjà servi garde en cache le coordinateur des groupes et échoue quand il change de broker. Aucune zone `# TODO` dans les démonstrations : elles montrent le code et l'expliquent. `build_notebooks.py` ne compile pas les cellules qui contiennent `!` ou `%` (syntaxe IPython). `labkafka.py` n'est plus importé par aucun notebook.
 
 Le client Python ne couvre pas toute l'administration. `confluent-kafka` 2.16 n'a pas d'API pour le quorum KRaft, les fonctionnalités (`kafka-features.sh`), les log dirs, la réassignation de partitions, le désenregistrement d'un broker, les quotas, les niveaux de trace des brokers (`broker-loggers`) ni la configuration par défaut de tous les brokers (`--entity-default`). Pour ces sujets, les notebooks passent par la CLI, et le Python sert à exploiter sa sortie (JSON de `kafka-log-dirs.sh` et des plans de réassignation au TP7).
 
@@ -48,9 +48,9 @@ Le client Python ne couvre pas toute l'administration. `confluent-kafka` 2.16 n'
 |---|---|
 | TP4, TP7, TP8 | Des cellules arrêtent ou redémarrent des nœuds : elles durent plusieurs minutes et ne doivent pas être interrompues |
 | TP6 | Mode `extended` obligatoire (Prometheus, Grafana, générateur de charge) |
-| TP7 | Crée `kafka-4` (profil `scale`) par `hote()` : le lab doit avoir été démarré par `scripts/start.sh`. Modifie `config/kafka/kafka-1/server.properties` (copie `.bak` à côté) ; `scripts/reset.sh` restaure l'original |
-| TP9 | Démarre `kafka-cloud` et `mirrormaker` (profil `mirror`) par `hote()`. Modifie `config/mirrormaker/mm2.properties` à l'étape 9.7 ; `scripts/reset.sh` restaure l'original et supprime le cluster cloud. Corrigé exécuté après les corrigés des TP1 à TP6, comme le lab d'un participant au début du TP9 |
-| TP8 | Dans l'énoncé, l'injecteur lance `scripts/incident.sh` dans un terminal du poste de son partenaire. Le corrigé joue lui-même l'injecteur par `hote()` : il donne les causes, à ne pas ouvrir avant la fin de l'atelier |
+| TP7 | Crée `kafka-4` (profil `scale`) par `docker compose` : le lab doit avoir été démarré par `scripts/start.sh`. Modifie `config/kafka/kafka-1/server.properties` (copie `.bak` à côté) ; `scripts/reset.sh` restaure l'original |
+| TP9 | Démarre `kafka-cloud` et `mirrormaker` (profil `mirror`) par `docker compose`. Modifie `config/mirrormaker/mm2.properties` à l'étape 6.7 ; `scripts/reset.sh` restaure l'original et supprime le cluster cloud. Corrigé exécuté après les corrigés des TP1 à TP6, comme le lab d'un participant au début du TP9 |
+| TP8 | Dans l'énoncé, l'injecteur lance `scripts/incident.sh` dans un terminal du poste de son partenaire. Le corrigé joue lui-même l'injecteur (`subprocess.run("scripts/incident.sh N inject")`) : il donne les causes, à ne pas ouvrir avant la fin de l'atelier |
 
 ## Ouvrir les notebooks dans VS Code
 
@@ -86,16 +86,20 @@ Une source est un fichier Python au format « percent » : chaque cellule commen
 |---|---|
 | `# %%` | Code, dans tous les notebooks |
 | `# %% [markdown]` | Texte, dans tous les notebooks ; chaque ligne commence par `# ` |
-| `# %% enonce` | Code de l'énoncé seulement : la zone `# TODO` |
-| `# %% corrige` | Code du corrigé seulement : la solution |
+| `# %% enonce` | Code de l'énoncé seulement : la cellule `# TODO` |
+| `# %% corrige` | Code du corrigé seulement : les réponses et le code fourni |
 | `# %% [markdown] enonce` ou `corrige` | Texte réservé à l'un des deux notebooks |
 
 Dans le texte, `@@DATE_EXECUTION@@` est remplacé par la date d'exécution du corrigé ou de la démo.
 
 Conventions :
 
-- Texte en français avec accents ; code et commentaires de code sans accents, comme dans les scripts du lab.
-- Une zone `# TODO` initialise toutes les variables qu'elle demande (`None`, `[]`, `{}`). Ainsi l'énoncé s'exécute d'un bout à l'autre et seules les vérifications échouent, avec `ARevoir`.
+- Texte en français avec accents. Dans le code, noms en anglais ; commentaires, docstrings et messages affichés en français accentué.
+- Les participants ne sont pas des développeurs : le TP fait comprendre, il ne fait pas coder. Une cellule `# TODO` commence par les réponses, une par ligne, `NOM = ...` suivi d'un commentaire qui dit quoi donner et sous quelle forme : un réglage (`ACKS`, `ENTITY_OPTION`), une réponse lue dans une sortie, ou une prévision du résultat (`PREDICTED_...`, à décider avant d'exécuter). Viennent ensuite la ligne `# Code fourni, à lire : rien à modifier en dessous`, l'initialisation des variables de résultat (`None`, `[]`, `{}`), puis le code, commenté ligne à ligne, sous `if filled(NOM, ...):`. Tant qu'un `...` reste, `filled()` affiche « À compléter » et le code ne s'exécute pas : l'énoncé tourne d'un bout à l'autre sans modifier le cluster, et seules les vérifications échouent.
+- Une réponse qui abîmerait le lab (quota trop bas, rétention trop courte, liste de topics tronquée) est contrôlée avant usage : la cellule affiche « Valeur refusée : ... » et n'exécute rien.
+- La cellule `# %% corrige` commence par `# Réponses`, chaque valeur expliquée en commentaire, puis `# Code fourni (identique à l'énoncé)` : le même code, sans `if filled(...)` ni contrôle des valeurs.
+- Une étape sans valeur utile à demander devient une cellule commune `# %%` « Code fourni, à lire ».
+- La vérification contrôle d'abord le résultat, puis compare chaque prévision au résultat mesuré : `assert PREDICTED_X == x, "À revoir : prévision %r : ..."`.
 - Une démonstration d'échec (refus d'ACL, broker arrêté) attrape l'exception et l'affiche : le corrigé doit s'exécuter sans erreur.
 - Chaque cellule de vérification commence par `# Vérification 6.x`.
 
